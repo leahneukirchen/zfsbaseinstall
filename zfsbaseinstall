@@ -354,59 +354,30 @@ if [ "${COMPRESS}" = "1" ]; then
 fi
 
 echo -n "Creating ${POOL} filesystems:"
-if ! /sbin/zfs create -o mountpoint=none ${POOL}/ROOT > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/ ${POOL}/ROOT/default > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/home ${POOL}/home > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/tmp -o exec=on -o setuid=off ${POOL}/tmp > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/usr -o canmount=off ${POOL}/usr > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/usr/ports -o setuid=off ${POOL}/usr/ports > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/usr/src ${POOL}/usr/src > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/var -o canmount=off ${POOL}/var > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/var/audit -o exec=off -o setuid=off ${POOL}/var/audit > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/var/crash -o exec=off -o setuid=off ${POOL}/var/crash > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/var/log -o exec=off -o setuid=off ${POOL}/var/log > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/var/mail -o atime=on ${POOL}/var/mail > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
-if ! /sbin/zfs create -o mountpoint=/var/tmp -o setuid=off ${POOL}/var/tmp > /dev/null 2> /dev/null; then
-	echo " error"
-	exit 1
-fi
+
+do_zfs_create() {
+	if ! /sbin/zfs create "$@" > /dev/null 2> /dev/null; then
+		echo " error"
+		exit 1
+	fi
+}
+
+do_zfs_create -o mountpoint=none ${POOL}/ROOT
+do_zfs_create -o mountpoint=/ ${POOL}/ROOT/default
+do_zfs_create -o mountpoint=/home ${POOL}/home
+do_zfs_create -o mountpoint=/tmp -o exec=on -o setuid=off ${POOL}/tmp
+do_zfs_create -o mountpoint=/usr -o canmount=off ${POOL}/usr
+do_zfs_create -o mountpoint=/usr/ports -o setuid=off ${POOL}/usr/ports
+do_zfs_create -o mountpoint=/usr/src ${POOL}/usr/src
+do_zfs_create -o mountpoint=/var -o canmount=off ${POOL}/var
+do_zfs_create -o mountpoint=/var/audit -o exec=off -o setuid=off ${POOL}/var/audit
+do_zfs_create -o mountpoint=/var/crash -o exec=off -o setuid=off ${POOL}/var/crash
+do_zfs_create -o mountpoint=/var/log -o exec=off -o setuid=off ${POOL}/var/log
+do_zfs_create -o mountpoint=/var/mail -o atime=on ${POOL}/var/mail
+do_zfs_create -o mountpoint=/var/tmp -o setuid=off ${POOL}/var/tmp
+
 echo " ... done"
+
 echo -n "Setting bootfs for ${POOL} to ${POOL}/root ..."
 if ! /sbin/zpool set bootfs=${POOL}/ROOT/default ${POOL} > /dev/null 2> /dev/null; then
 	echo " error"
