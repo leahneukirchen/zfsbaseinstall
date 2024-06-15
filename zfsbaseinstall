@@ -45,7 +45,7 @@ help() {
 	echo "                           (defaults to FreeBSD FTP mirror)"
 	echo "-s swap_part_size        : create a swap partition with given size (default: no swap)"
 	echo "-z zfs_part_size         : create zfs parition of this size (default: all space left)"
-	echo "-p pool_name             : specify a name for the ZFS pool (default: tank)"
+	echo "-p pool_name             : specify a name for the ZFS pool (default: zroot)"
 	echo "-C                       : compatibility mode with limited feature flags"
 	echo "                           (enable only async_destroy, empty_bpobj and lz4_compress)"
 	echo "-m mount_point           : use this mount point for operations (default: /mnt)"
@@ -149,7 +149,7 @@ if [ -z "$DEVS" ]; then
 fi
 
 if [ -z "$POOL" ]; then
-	POOL=tank
+	POOL=zroot
 fi
 
 if [ -z "$VERSION" ]; then
