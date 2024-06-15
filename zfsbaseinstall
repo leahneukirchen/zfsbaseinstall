@@ -21,10 +21,6 @@ osrelease() {
 	/sbin/sysctl -n kern.osrelease | /usr/bin/sed -E -e 's,-p[0-9]+$,,g'
 }
 
-osminor() {
-	osrelease | sed -E -e 's,-.*,,; s,[0-9]+\.,,'
-}
-
 check_raid() {
 	RAID_TYPE="$1"
 	test -n "$RAID_TYPE" || return 1
@@ -408,12 +404,21 @@ echo "Installing FreeBSD pkgbase ..."
 
 cat >/etc/pkg/base.conf <<EOF
 base: {
-  url: "pkg+https://pkg.FreeBSD.org/\${ABI}/base_release_$(osminor)",
-  mirror_type: "srv"
+  url: "pkg+https://pkg.FreeBSD.org/\${ABI}/base_release_\${VERSION_MINOR}",
+  mirror_type: "srv",
+  signature_type: "fingerprints",
+  fingerprints: "/usr/share/keys/pkg",
+  enabled: true
 }
 EOF
 
-pkg -r ${MNT} install -y -r base $(pkg search -r base -q '.*' | grep -v -e -dbg -e -lib32 -e -src -e -tests -e mmccam)
+mkdir -p ${MNT}/usr/share/keys
+cp -r /usr/share/keys/pkg ${MNT}/usr/share/keys
+
+if ! pkg -r ${MNT} install -y -r base $(pkg search -r base -q '.*' | grep -v -e -dbg -e -lib32 -e -src -e -tests -e mmccam); then
+	echo " error"
+	exit 1
+fi
 
 cp /etc/pkg/base.conf ${MNT}/etc/pkg
 
