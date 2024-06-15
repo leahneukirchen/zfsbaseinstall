@@ -3,6 +3,7 @@
 #
 # mfsBSD ZFS install script
 # Copyright (c) 2018 Martin Matuska <mm at FreeBSD.org>
+# Copyright (c) 2024 Leah Neukirchen <leah@vuxu.org>
 #
 FREEBSD_MIRROR="${FREEBSD_MIRROR:-ftp://ftp.freebsd.org/pub/FreeBSD}"
 FS_LIST="var tmp"
@@ -18,6 +19,10 @@ osarch() {
 
 osrelease() {
 	/sbin/sysctl -n kern.osrelease | /usr/bin/sed -E -e 's,-p[0-9]+$,,g'
+}
+
+osminor() {
+	osrelease | sed -E -e 's,-.*,,; s,[0-9]+\.,,'
 }
 
 check_raid() {
@@ -213,29 +218,6 @@ for DEV in ${DEVS}; do
 	fi
 done
 
-EXTRACT_FILES="/tmp/base.txz /tmp/kernel.txz"
-
-if [ -z "${URL}" ]; then
-	if [ -z "${ARCHIVE}" ]; then
-		URL="${FREEBSD_MIRROR}/releases/$(osarch)/$(osrelease)"
-	elif ! [ -f "${ARCHIVE}" ]; then
-		echo "Error: file $ARCHIVE does not exist"
-		exit 1
-	else
-		EXTRACT_FILES=${ARCHIVE}
-	fi
-else
-	if [ -d "${URL}" ]; then
-		for file in base.txz kernel.txz; do
-			if ! [ -f "${URL}/${file}" ]; then
-				echo "File not found: ${URL}/${file}"
-				exit 1
-			fi
-		done
-		EXTRACT_FILES="${URL}/base.txz ${URL}/kernel.txz"
-	fi
-fi
-
 if [ -z "$MNT" ]; then
 	MNT=/mnt
 fi
@@ -371,28 +353,62 @@ if [ "${COMPRESS}" = "1" ]; then
 	echo " done"
 fi
 
-echo -n "Creating ${POOL} root partition:"
-if ! /sbin/zfs create -o mountpoint=${ROOTMNT} ${POOL}/root > /dev/null 2> /dev/null; then
+echo -n "Creating ${POOL} filesystems:"
+if ! /sbin/zfs create -o mountpoint=none ${POOL}/ROOT > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/ ${POOL}/ROOT/default > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/home ${POOL}/home > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/tmp -o exec=on -o setuid=off ${POOL}/tmp > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/usr -o canmount=off ${POOL}/usr > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/usr/ports -o setuid=off ${POOL}/usr/ports > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/usr/src ${POOL}/usr/src > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/var -o canmount=off ${POOL}/var > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/var/audit -o exec=off -o setuid=off ${POOL}/var/audit > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/var/crash -o exec=off -o setuid=off ${POOL}/var/crash > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/var/log -o exec=off -o setuid=off ${POOL}/var/log > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/var/mail -o atime=on ${POOL}/var/mail > /dev/null 2> /dev/null; then
+	echo " error"
+	exit 1
+fi
+if ! /sbin/zfs create -o mountpoint=/var/tmp -o setuid=off ${POOL}/var/tmp > /dev/null 2> /dev/null; then
 	echo " error"
 	exit 1
 fi
 echo " ... done"
-echo -n "Creating ${POOL} partitions:"
-for FS in ${FS_LIST}; do
-	if [ "${LEGACY}" = 1 ]; then
-		MNTPT="-o mountpoint=legacy"
-	else
-		MNTPT=
-	fi
-	if ! /sbin/zfs create ${MNTPT} ${POOL}/root/${FS} > /dev/null 2> /dev/null; then
-		echo " error"
-		exit 1
-	fi
-	echo -n " ${FS}"
-done
-echo " ... done"
 echo -n "Setting bootfs for ${POOL} to ${POOL}/root ..."
-if ! /sbin/zpool set bootfs=${POOL}/root ${POOL} > /dev/null 2> /dev/null; then
+if ! /sbin/zpool set bootfs=${POOL}/ROOT/default ${POOL} > /dev/null 2> /dev/null; then
 	echo " error"
 	exit 1
 fi
@@ -430,7 +446,6 @@ echo " done"
 
 echo -n "Writing /boot/loader.conf..."
 echo "zfs_load=\"YES\"" > ${MNT}/boot/loader.conf
-echo "vfs.root.mountfrom=\"zfs:${POOL}/root\"" >> ${MNT}/boot/loader.conf
 echo " done"
 
 # Write fstab if swap or legacy
@@ -486,6 +501,14 @@ if [ -n "${LEGACY}" ]; then
 		fi
 	done
 fi
+echo " done"
+
+echo -n "Snapshotting initial boot environment ..."
+bectl -r ${POOL}/ROOT create -r default@initial
+echo " done"
+
+echo -n "Activating boot environment ..."
+bectl -r ${POOL}/ROOT activate default
 echo " done"
 
 echo ""
