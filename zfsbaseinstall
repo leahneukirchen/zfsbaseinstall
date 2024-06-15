@@ -1,7 +1,7 @@
 #!/bin/sh
 # $Id$
 #
-# mfsBSD ZFS install script
+# FreeBSD on ZFS install script using pkgbase and boot environments
 # Copyright (c) 2018 Martin Matuska <mm at FreeBSD.org>
 # Copyright (c) 2024 Leah Neukirchen <leah@vuxu.org>
 #
@@ -404,14 +404,27 @@ if [ "${LEGACY}" = "1" ]; then
 echo " done"
 fi
 
-echo -n "Extracting FreeBSD distribution ..."
-for file in ${EXTRACT_FILES}; do
-	if ! /usr/bin/tar -C ${MNT} -x -f ${file} > /dev/null 2> /dev/null; then
-		echo " error"
-		exit 1
-	fi
-done
-echo " done"
+echo "Installing FreeBSD pkgbase ..."
+
+cat >/etc/pkg/base.conf <<EOF
+base: {
+  url: "pkg+https://pkg.FreeBSD.org/\${ABI}/base_release_$(osminor)",
+  mirror_type: "srv"
+}
+EOF
+
+pkg -r ${MNT} install -y -r base $(pkg search -r base -q '.*' | grep -v -e -dbg -e -lib32 -e -src -e -tests -e mmccam)
+
+cp /etc/pkg/base.conf ${MNT}/etc/pkg
+
+echo "done"
+
+echo "Fixing mtrees ... "
+mtree -e -U -p ${MNT}/ -f /etc/mtree/BSD.root.dist
+mtree -e -U -p ${MNT}/usr -f /etc/mtree/BSD.usr.dist
+mtree -e -U -p ${MNT}/usr/include -f /etc/mtree/BSD.include.dist
+mtree -e -U -p ${MNT}/var -f /etc/mtree/BSD.var.dist
+echo "done"
 
 # Adjust configuration files
 
